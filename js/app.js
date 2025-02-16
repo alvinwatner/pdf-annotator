@@ -1,3 +1,5 @@
+import { fetchLabels, fetchColors, getDocs, addDoc, deleteDoc, doc, collection, db } from './firebase-config.js';
+
 // Initialize PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
@@ -19,6 +21,58 @@ class PDFAnnotator {
         this.isHighlightMode = false;
         this.scale = 1.5;
         this.currentPdfName = '';
+        this.labels = [];
+        this.colors = [];
+        
+        this.init();
+    }
+
+    async init() {
+        try {
+            // Fetch labels and colors from Firebase
+            const [labels, colors] = await Promise.all([
+                fetchLabels(),
+                fetchColors()
+            ]);
+            
+            this.labels = labels;
+            this.colors = colors;
+            
+            console.log('Fetched labels:', labels);
+            console.log('Fetched colors:', colors);
+            
+            // Populate color picker
+            if (this.colorPicker) {
+                // Clear existing options
+                this.colorPicker.innerHTML = '';
+                
+                // Add default option
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Select Color';
+                defaultOption.disabled = true;
+                defaultOption.selected = true;
+                this.colorPicker.appendChild(defaultOption);
+                
+                // Add color options
+                this.colors.forEach(color => {
+                    const option = document.createElement('option');
+                    option.value = color.value;
+                    option.textContent = color.name;
+                    option.style.backgroundColor = color.value;
+                    this.colorPicker.appendChild(option);
+                });
+                
+                // Set default color if available
+                if (this.colors.length > 0) {
+                    this.colorPicker.value = this.colors[0].value;
+                }
+            }
+        } catch (error) {
+            console.error('Error initializing:', error);
+            this.labels = [];
+            this.colors = [];
+        }
         
         this.setupEventListeners();
     }
@@ -47,6 +101,61 @@ class PDFAnnotator {
             this.loadAnnotationsInput.click();
         });
         this.loadAnnotationsInput.addEventListener('change', this.loadAnnotations.bind(this));
+
+        // Settings Modal
+        const settingsModal = document.getElementById('settings-modal');
+        const settingsBtn = document.getElementById('settings-btn');
+        const closeBtn = document.querySelector('.close-btn');
+        const labelList = document.querySelector('.label-list');
+        const colorList = document.querySelector('.color-list');
+        const newLabelInput = document.getElementById('new-label-input');
+        const addLabelBtn = document.getElementById('add-label-btn');
+        const newColorName = document.getElementById('new-color-name');
+        const newColorValue = document.getElementById('new-color-value');
+        const addColorBtn = document.getElementById('add-color-btn');
+
+        // Show/hide settings modal
+        settingsBtn.addEventListener('click', () => {
+            settingsModal.style.display = 'flex';
+            this.loadSettings();
+        });
+
+        closeBtn.addEventListener('click', () => {
+            settingsModal.style.display = 'none';
+        });
+
+        // Close modal when clicking outside
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.style.display = 'none';
+            }
+        });
+
+        // Add new label
+        addLabelBtn.addEventListener('click', () => this.addNewLabel());
+
+        // Add new color
+        addColorBtn.addEventListener('click', () => this.addNewColor());
+
+        // Add delete label listeners
+        // const labelList = document.querySelector('.label-list');
+        labelList.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.delete-btn');
+            if (deleteBtn) {
+                const labelId = deleteBtn.dataset.id;
+                this.deleteLabel(labelId, deleteBtn);
+            }
+        });
+
+        // Add delete color listeners
+        // const colorList = document.querySelector('.color-list');
+        colorList.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.delete-btn');
+            if (deleteBtn) {
+                const colorId = deleteBtn.dataset.id;
+                this.deleteColor(colorId, deleteBtn);
+            }
+        });
     }
 
     async renderPage(pageNum) {
@@ -201,44 +310,86 @@ class PDFAnnotator {
     }
 
     handleHighlightClick(event) {
-        // Only handle clicks when in highlight mode
-        if (!this.isHighlightMode) return;
+        const highlight = event.target.closest('.highlight');
+        if (!highlight) {
+            this.removeHighlightMenu();
+            return;
+        }
 
-        const highlightEl = event.target.closest('.highlight:not(.temp-highlight)');
-        if (!highlightEl) return;
+        // Remove any existing menus
+        this.removeHighlightMenu();
 
-        // Find the annotation group this highlight belongs to
-        const textLayer = highlightEl.closest('.text-layer');
-        const pageWrapper = textLayer.closest('.page-wrapper');
-        const pageNumber = parseInt(pageWrapper.dataset.pageNumber);
+        // Find the annotation this highlight belongs to
+        const highlightGroup = highlight.closest('.highlight-group');
+        const annotationId = highlightGroup.dataset.annotationId;
         
-        // Get position of the clicked highlight
-        const highlightRect = highlightEl.getBoundingClientRect();
-        const textLayerRect = textLayer.getBoundingClientRect();
-        const clickedPos = {
-            left: highlightRect.left - textLayerRect.left,
-            top: highlightRect.top - textLayerRect.top,
-            width: highlightRect.width,
-            height: highlightRect.height
-        };
+        // Add selected class to all highlights in this group
+        highlightGroup.querySelectorAll('.highlight').forEach(h => h.classList.add('selected'));
 
-        // Find the annotation that contains this highlight
-        const annotationIndex = this.annotations.findIndex(a => 
-            a.pageNumber === pageNumber && 
-            a.rects.some(r => 
-                Math.abs(r.left - clickedPos.left) < 1 &&
-                Math.abs(r.top - clickedPos.top) < 1 &&
-                Math.abs(r.width - clickedPos.width) < 1 &&
-                Math.abs(r.height - clickedPos.height) < 1
-            )
-        );
+        // Create and show the menu
+        const menu = document.createElement('div');
+        menu.className = 'highlight-menu';
+        menu.innerHTML = `
+            <button class="delete-btn">Delete</button>
+            <button class="cancel-btn">Cancel</button>
+        `;
 
-        if (annotationIndex !== -1) {
-            // Remove the annotation from our array
-            this.annotations.splice(annotationIndex, 1);
+        // Position the menu near the clicked highlight
+        const highlightRect = highlight.getBoundingClientRect();
+        menu.style.left = `${highlightRect.left}px`;
+        menu.style.top = `${highlightRect.bottom + 5}px`;
+
+        // Add event listeners
+        const deleteBtn = menu.querySelector('.delete-btn');
+        const cancelBtn = menu.querySelector('.cancel-btn');
+
+        deleteBtn.addEventListener('click', () => {
+            this.deleteHighlight(annotationId);
+            this.removeHighlightMenu();
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            this.removeHighlightMenu();
+        });
+
+        document.body.appendChild(menu);
+    }
+
+    removeHighlightMenu() {
+        // Remove any existing menus
+        const existingMenu = document.querySelector('.highlight-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        // Remove selected class from all highlights
+        document.querySelectorAll('.highlight.selected').forEach(h => h.classList.remove('selected'));
+    }
+
+    deleteHighlight(annotationId) {
+        // Find the annotation index
+        const index = this.annotations.findIndex(a => a.id === annotationId);
+        
+        if (index !== -1) {
+            // Remove from annotations array
+            this.annotations.splice(index, 1);
             
-            // Re-render the page to update highlights
-            this.renderPage(pageNumber);
+            // Remove all highlights and labels with this annotation ID
+            const highlightGroup = document.querySelector(`.highlight-group[data-annotation-id="${annotationId}"]`);
+            const label = document.querySelector(`.floating-label[data-annotation-id="${annotationId}"]`);
+            
+            if (highlightGroup) {
+                const textLayer = highlightGroup.closest('.text-layer');
+                const pageWrapper = textLayer.closest('.page-wrapper');
+                const pageNumber = parseInt(pageWrapper.dataset.pageNumber);
+                
+                // Remove the elements
+                highlightGroup.remove();
+                if (label) label.remove();
+                
+                // Re-render highlights for this page
+                this.restoreHighlights(pageNumber, textLayer);
+            }
         }
     }
 
@@ -309,7 +460,7 @@ class PDFAnnotator {
         pageAnnotations.forEach(annotation => {
             const highlightGroup = document.createElement('div');
             highlightGroup.className = 'highlight-group';
-            highlightGroup.dataset.annotationId = annotation.id || Math.random().toString(36).substr(2, 9);
+            highlightGroup.dataset.annotationId = annotation.id;
             
             // Create highlights
             annotation.rects.forEach(rect => {
@@ -321,7 +472,6 @@ class PDFAnnotator {
                 highlightDiv.style.top = `${rect.top}px`;
                 highlightDiv.style.width = `${rect.width}px`;
                 highlightDiv.style.height = `${rect.height}px`;
-                highlightDiv.title = 'Click to delete highlight';
                 
                 highlightGroup.appendChild(highlightDiv);
             });
@@ -333,7 +483,7 @@ class PDFAnnotator {
                 const floatingLabel = document.createElement('div');
                 floatingLabel.className = 'floating-label';
                 floatingLabel.textContent = annotation.label;
-                floatingLabel.dataset.annotationId = highlightGroup.dataset.annotationId;
+                floatingLabel.dataset.annotationId = annotation.id;
                 
                 // Position the label above the first highlight
                 const firstRect = annotation.rects[0];
@@ -346,53 +496,55 @@ class PDFAnnotator {
         });
     }
 
-    showLabelInput(x, y, highlightId, text, pageNumber, rects) {
-        // Remove any existing label input
-        const existingInput = document.querySelector('.label-input-container');
-        if (existingInput) {
-            existingInput.remove();
+    async showLabelInput(x, y, highlightId, text, pageNumber, rects) {
+        // Prevent showing menu if one already exists
+        if (document.querySelector('.label-menu-container')) {
+            return;
         }
-
-        // Create label input container
+    
+        console.log('Initializing label input...');
+    
+        // Create menu container
         const container = document.createElement('div');
-        container.className = 'label-input-container';
+        container.className = 'label-menu-container';
         container.style.position = 'fixed';
         container.style.left = `${x}px`;
         container.style.top = `${y}px`;
-        container.style.zIndex = '1000';
+        container.style.zIndex = '9999';
+    
+        // Create scrollable menu wrapper
+        const menuWrapper = document.createElement('div');
+        menuWrapper.className = 'menu-wrapper';
+    
+        const cleanup = () => {
+            console.log('Cleaning up...');
+            if (container && container.parentNode) {
+                container.remove();
+            }
+            document.removeEventListener('mousedown', handleClickOutside);
+            window.getSelection().removeAllRanges();
+        };
+    
+        const saveHighlight = (labelId) => {
+            console.log('saveHighlight called with labelId:', labelId);
+            
+            if (labelId) {
+                const selectedLabel = this.labels.find(l => l.id === labelId);
+                if (!selectedLabel) {
+                    console.error('Label not found:', labelId);
+                    return;
+                }
 
-        // Create input element
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.placeholder = 'Enter label...';
-        input.className = 'label-input';
-
-        // Create add button
-        const addButton = document.createElement('button');
-        addButton.textContent = 'Add';
-        addButton.className = 'add-button';
-
-        // Add elements to container
-        container.appendChild(input);
-        container.appendChild(addButton);
-        document.body.appendChild(container);
-
-        // Focus the input
-        input.focus();
-
-        const saveHighlight = () => {
-            const label = input.value.trim();
-            if (label) {
                 this.annotations.push({
                     id: highlightId,
                     text,
-                    label,
+                    label: selectedLabel.name,
+                    labelId: selectedLabel.id,
                     color: this.colorPicker.value,
                     pageNumber,
                     rects
                 });
-
-                // Find the text layer and restore highlights
+    
                 const pageWrapper = document.querySelector(`[data-page-number="${pageNumber}"]`);
                 if (pageWrapper) {
                     const textLayer = pageWrapper.querySelector('.text-layer');
@@ -401,44 +553,71 @@ class PDFAnnotator {
                     }
                 }
             } else {
-                // Remove the highlight if no label
                 const highlight = document.querySelector(`[data-highlight-id="${highlightId}"]`);
                 if (highlight) {
                     highlight.remove();
                 }
             }
-            container.remove();
+            
+            cleanup();
         };
-
+    
         const cancelHighlight = () => {
-            // Remove the highlight
+            console.log('Canceling highlight...');
             const highlight = document.querySelector(`[data-highlight-id="${highlightId}"]`);
             if (highlight) {
                 highlight.remove();
             }
-            container.remove();
+            cleanup();
         };
-
-        // Handle input events
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                saveHighlight();
-            } else if (e.key === 'Escape') {
-                cancelHighlight();
-            }
+    
+        // Use Firebase labels
+        if (this.labels.length === 0) {
+            console.warn('No labels available');
+            cancelHighlight();
+            return;
+        }
+        
+        this.labels.forEach(label => {
+            const menuItem = document.createElement('button');
+            menuItem.className = 'menu-item';
+            menuItem.setAttribute('type', 'button');
+            menuItem.textContent = label.name;
+            
+            menuItem.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                console.log('Menu item clicked:', label.name);
+                saveHighlight(label.id);
+            });
+            
+            menuWrapper.appendChild(menuItem);
         });
-
-        // Handle add button click
-        addButton.addEventListener('click', saveHighlight);
-
+    
+        // Add wrapper to container
+        container.appendChild(menuWrapper);
+    
         // Handle click outside
         const handleClickOutside = (e) => {
             if (!container.contains(e.target)) {
+                console.log('Click outside detected');
                 cancelHighlight();
-                document.removeEventListener('mousedown', handleClickOutside);
             }
         };
+    
         document.addEventListener('mousedown', handleClickOutside);
+        document.body.appendChild(container);
+    
+        // Adjust position if menu goes off screen
+        const rect = container.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            container.style.left = `${window.innerWidth - rect.width - 10}px`;
+        }
+        if (rect.bottom > window.innerHeight) {
+            container.style.top = `${window.innerHeight - rect.height - 10}px`;
+        }
+    
+        console.log('Menu initialization complete');
     }
 
     downloadAnnotations() {
@@ -453,6 +632,7 @@ class PDFAnnotator {
             annotations: this.annotations.map(annotation => ({
                 text: annotation.text,
                 label: annotation.label,
+                labelId: annotation.labelId,
                 color: annotation.color,
                 pageNumber: annotation.pageNumber,
                 rects: annotation.rects
@@ -608,6 +788,226 @@ class PDFAnnotator {
         // Remove all temporary highlight groups
         const tempGroups = document.querySelectorAll('.temp-group');
         tempGroups.forEach(group => group.remove());
+    }
+
+    async loadSettings() {
+        const labelList = document.querySelector('.label-list');
+        const colorList = document.querySelector('.color-list');
+        const labelSpinner = labelList.querySelector('.loading-spinner');
+        const colorSpinner = colorList.querySelector('.loading-spinner');
+
+        try {
+            // Show loading spinners
+            labelSpinner.style.display = 'flex';
+            colorSpinner.style.display = 'flex';
+
+            // Clear existing items
+            labelList.innerHTML = '';
+            colorList.innerHTML = '';
+
+            // Add spinners back (they were cleared)
+            labelList.appendChild(labelSpinner);
+            colorList.appendChild(colorSpinner);
+
+            // Load labels
+            const labelsSnapshot = await getDocs(collection(db, 'labels'));
+            labelsSnapshot.forEach(doc => {
+                const label = doc.data();
+                this.addLabelToList(label.name, doc.id);
+            });
+
+            // Load colors
+            const colorsSnapshot = await getDocs(collection(db, 'colors'));
+            colorsSnapshot.forEach(doc => {
+                const color = doc.data();
+                this.addColorToList(color.name, color.value, doc.id);
+            });
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        } finally {
+            // Hide loading spinners
+            labelSpinner.style.display = 'none';
+            colorSpinner.style.display = 'none';
+        }
+    }
+    async addNewLabel() {
+        const addLabelBtn = document.getElementById('add-label-btn');
+        const btnText = addLabelBtn.querySelector('.btn-text');
+        const btnSpinner = addLabelBtn.querySelector('.btn-spinner');
+        const newLabelInput = document.getElementById('new-label-input');
+        const labelName = newLabelInput.value.trim();
+    
+        if (labelName) {
+            try {
+                // Show loading state
+                addLabelBtn.disabled = true;
+                btnText.style.display = 'none';
+                btnSpinner.style.display = 'block';
+    
+                const docRef = await addDoc(collection(db, 'labels'), {
+                    name: labelName
+                });
+                
+                // Add to local labels array
+                const newLabel = {
+                    id: docRef.id,
+                    name: labelName
+                };
+                this.labels.push(newLabel);  // Add this line
+                
+                this.addLabelToList(labelName, docRef.id);
+                newLabelInput.value = '';
+                this.updateLabelDropdown();
+            } catch (error) {
+                console.error('Error adding label:', error);
+            } finally {
+                // Reset button state
+                addLabelBtn.disabled = false;
+                btnText.style.display = 'block';
+                btnSpinner.style.display = 'none';
+            }
+        }
+    }
+
+    async addNewColor() {
+        const addColorBtn = document.getElementById('add-color-btn');
+        const btnText = addColorBtn.querySelector('.btn-text');
+        const btnSpinner = addColorBtn.querySelector('.btn-spinner');
+        const newColorName = document.getElementById('new-color-name');
+        const newColorValue = document.getElementById('new-color-value');
+        const colorName = newColorName.value.trim();
+        const colorValue = newColorValue.value;
+
+        if (colorName && colorValue) {
+            try {
+                // Show loading state
+                addColorBtn.disabled = true;
+                btnText.style.display = 'none';
+                btnSpinner.style.display = 'block';
+
+                const docRef = await addDoc(collection(db, 'colors'), {
+                    name: colorName,
+                    value: colorValue
+                });
+                this.addColorToList(colorName, colorValue, docRef.id);
+                newColorName.value = '';
+                newColorValue.value = '#000000';
+                this.updateColorDropdown();
+            } catch (error) {
+                console.error('Error adding color:', error);
+            } finally {
+                // Reset button state
+                addColorBtn.disabled = false;
+                btnText.style.display = 'block';
+                btnSpinner.style.display = 'none';
+            }
+        }
+    }
+
+    addLabelToList(name, id) {
+        const div = document.createElement('div');
+        div.className = 'label-item';
+        div.innerHTML = `
+            <span>${name}</span>
+            <button class="delete-btn" data-id="${id}">
+                <span class="btn-text">Delete</span>
+                <div class="btn-spinner" style="display: none;"></div>
+            </button>
+        `;
+        
+        const labelList = document.querySelector('.label-list');
+        labelList.appendChild(div);
+    }
+
+    addColorToList(name, value, id) {
+        const div = document.createElement('div');
+        div.className = 'color-item';
+        div.innerHTML = `
+            <div class="color-info">
+                <span>${name}</span>
+                <div class="color-preview" style="background-color: ${value}"></div>
+            </div>
+            <button class="delete-btn" data-id="${id}">
+                <span class="btn-text">Delete</span>
+                <div class="btn-spinner" style="display: none;"></div>
+            </button>
+        `;
+        
+        const colorList = document.querySelector('.color-list');
+        colorList.appendChild(div);
+    }
+
+    async deleteLabel(labelId, button) {
+        try {
+            // Show loading state
+            const btnText = button.querySelector('.btn-text');
+            const btnSpinner = button.querySelector('.btn-spinner');
+            button.disabled = true;
+            btnText.style.display = 'none';
+            btnSpinner.style.display = 'block';
+    
+            await deleteDoc(doc(db, 'labels', labelId));
+            
+            // Remove from local labels array
+            this.labels = this.labels.filter(label => label.id !== labelId);  // Add this line
+            
+            button.closest('.label-item').remove();
+            this.updateLabelDropdown();
+        } catch (error) {
+            console.error('Error deleting label:', error);
+            // Reset button state on error
+            const btnText = button.querySelector('.btn-text');
+            const btnSpinner = button.querySelector('.btn-spinner');
+            button.disabled = false;
+            btnText.style.display = 'block';
+            btnSpinner.style.display = 'none';
+        }
+    }
+
+    async deleteColor(colorId, button) {
+        try {
+            // Show loading state
+            const btnText = button.querySelector('.btn-text');
+            const btnSpinner = button.querySelector('.btn-spinner');
+            button.disabled = true;
+            btnText.style.display = 'none';
+            btnSpinner.style.display = 'block';
+
+            await deleteDoc(doc(db, 'colors', colorId));
+            button.closest('.color-item').remove();
+            this.updateColorDropdown();
+        } catch (error) {
+            console.error('Error deleting color:', error);
+            // Reset button state on error
+            const btnText = button.querySelector('.btn-text');
+            const btnSpinner = button.querySelector('.btn-spinner');
+            button.disabled = false;
+            btnText.style.display = 'block';
+            btnSpinner.style.display = 'none';
+        }
+    }
+
+    async updateColorDropdown()  {
+        const colorPicker = document.getElementById('color-picker');
+        colorPicker.innerHTML = '<option value="" disabled selected>Select Color</option>';
+        
+        try {
+            const colorsSnapshot = await getDocs(collection(db, 'colors'));
+            colorsSnapshot.forEach(doc => {
+                const color = doc.data();
+                const option = document.createElement('option');
+                option.value = color.value;
+                option.textContent = color.name;
+                option.style.backgroundColor = color.value;
+                colorPicker.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error updating color dropdown:', error);
+        }
+    }
+
+    updateLabelDropdown() {
+        // Update the label dropdown in the main UI
     }
 }
 

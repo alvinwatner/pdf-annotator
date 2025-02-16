@@ -142,7 +142,7 @@ body.highlight-mode .text-layer > span {
     mix-blend-mode: multiply;
     opacity: 0.3;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: all 0.2s ease;
     pointer-events: auto;
 }
 
@@ -150,48 +150,98 @@ body.highlight-mode .text-layer > span {
     opacity: 0.5;
 }
 
+.highlight.selected {
+    opacity: 0.7;
+    outline: 2px solid #dc3545;
+}
+
+.highlight.delete-highlight {
+    background-color: #dc3545;
+    opacity: 0.5;
+}
+
+.highlight.delete-highlight:hover {
+    opacity: 0.7;
+}
+
 .temp-highlight {
     pointer-events: none;
 }
 
-.label-input-container {
+.label-menu-container {
     position: fixed;
-    z-index: 1000;
+    z-index: 9999;
     background: white;
-    padding: 8px;
+    padding: 4px;
     border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     display: flex;
-    gap: 8px;
-    align-items: center;
+    flex-direction: column;
+    min-width: 160px;
+    max-width: 200px;
 }
 
-.label-input {
-    border: 1px solid #ddd;
-    padding: 4px 8px;
-    border-radius: 4px;
+.menu-wrapper {
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #888 #f1f1f1;
+}
+
+/* Webkit scrollbar styles */
+.menu-wrapper::-webkit-scrollbar {
+    width: 6px;
+}
+
+.menu-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.menu-wrapper::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.menu-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.menu-item {
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    width: 100%;
     font-size: 14px;
-    min-width: 120px;
-    outline: none;
+    color: #333;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.label-input:focus {
-    border-color: #007bff;
+.menu-item:hover {
+    background-color: #f0f0f0;
+}
+
+.menu-item:active {
+    background-color: #e0e0e0;
 }
 
 .add-button {
-    background-color: #28a745;
+    padding: 6px 12px;
+    background-color: #007bff;
     color: white;
     border: none;
-    padding: 4px 12px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.2s;
 }
 
 .add-button:hover {
-    background-color: #218838;
+    background-color: #0056b3;
 }
 
 .floating-label {
@@ -247,15 +297,6 @@ body.highlight-mode .text-layer > span {
     border: 1px solid #ddd;
 }
 
-#color-picker {
-    padding: 2px;
-    border: none;
-    border-radius: 4px;
-    height: 30px;
-    width: 50px;
-    cursor: pointer;
-}
-
 #annotation-controls {
     position: fixed;
     bottom: 20px;
@@ -269,6 +310,37 @@ body.highlight-mode .text-layer > span {
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.color-dropdown,
+#color-picker {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    min-width: 120px;
+    cursor: pointer;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.color-dropdown:hover,
+#color-picker:hover {
+    border-color: black;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.color-dropdown:focus,
+#color-picker:focus {
+    border-color: black;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+
+.color-dropdown option,
+#color-picker option {
+    padding: 8px;
+    background-color: white;
 }
 
 button {
@@ -399,4 +471,302 @@ button.active {
 .upload-button:hover {
     background-color: #0056b3;
     transform: translateY(-1px);
+}
+
+.controls-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.control-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 16px;
+    border: none;
+    border-radius: 4px;
+    background: #007bff;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.control-btn:hover {
+    background: #0056b3;
+    transform: translateY(-1px);
+}
+
+.control-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #6c757d;
+}
+
+.control-btn:disabled:hover {
+    transform: none;
+    background: #6c757d;
+}
+
+.btn-icon {
+    font-size: 16px;
+}
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+    height: 600px; /* Set a fixed height */
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+    padding: 16px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0; /* Prevent header from shrinking */
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.modal-body {
+    padding: 16px;
+    overflow-y: auto; /* Make only the body scrollable */
+    flex-grow: 1; /* Allow body to take remaining space */
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.close-btn:hover {
+    background: #f0f0f0;
+    transform: none;
+}
+
+.modal-body {
+    padding: 16px;
+}
+
+.settings-section {
+    margin-bottom: 24px;
+}
+
+.settings-section h3 {
+    margin: 0 0 16px;
+    font-size: 16px;
+    color: #333;
+}
+
+.label-list,
+.color-list {
+    margin-bottom: 16px;
+    display: grid;
+    gap: 8px;
+}
+
+.label-item,
+.color-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.color-item .color-preview {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.delete-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    min-width: 70px;
+}
+
+.delete-btn:hover {
+    background: #fce8e8;
+    transform: none;
+}
+
+.delete-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.delete-btn .btn-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(220, 53, 69, 0.3);
+    border-top: 2px solid #dc3545;
+}
+
+.add-form {
+    display: flex;
+    gap: 8px;
+}
+
+.add-form input[type="text"] {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.add-form input[type="color"] {
+    padding: 2px;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.add-btn {
+    padding: 8px 16px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.add-btn:hover {
+    background: #218838;
+    transform: none;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 20px;
+    color: #666;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.btn-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top: 2px solid #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 8px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 100px;
+}
+
+.add-btn[disabled] {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.highlight-menu {
+    position: fixed;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    padding: 8px;
+    z-index: 1000;
+    display: flex;
+    gap: 8px;
+}
+
+.highlight-menu button {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.highlight-menu .delete-btn {
+    background: #dc3545;
+    color: white;
+}
+
+.highlight-menu .delete-btn:hover {
+    background: #c82333;
+}
+
+.highlight-menu .cancel-btn {
+    background: #6c757d;
+    color: white;
+}
+
+.highlight-menu .cancel-btn:hover {
+    background: #5a6268;
 }
