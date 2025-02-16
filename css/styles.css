@@ -1,0 +1,273 @@
+body {
+    margin: 0;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    background-color: #f5f5f5;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.upload-section {
+    margin-bottom: 20px;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#pdf-container {
+    margin: 60px auto 100px;
+    max-width: 1000px;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.page-wrapper {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.page {
+    position: relative;
+    margin: 0 auto;
+    background-color: white;
+}
+
+.canvasWrapper {
+    position: relative;
+}
+
+canvas {
+    display: block;
+}
+
+.pdf-page {
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.text-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    opacity: 1;
+    line-height: 1.0;
+    user-select: text;
+}
+
+.text-layer > span {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+}
+
+.text-layer > span::selection {
+    background: rgba(0, 0, 255, 0.2);
+}
+
+.highlight-group {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.highlight-group .highlight {
+    position: absolute;
+    pointer-events: auto;
+    mix-blend-mode: multiply;
+    transition: opacity 0.2s;
+    cursor: pointer;
+    opacity: 0.3;
+}
+
+.highlight-group .highlight:hover {
+    opacity: 0.7 !important;
+}
+
+.highlight-group .highlight.temp-highlight {
+    opacity: 0.5;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.floating-label {
+    position: absolute;
+    z-index: 1000;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: white;
+    background-color: black;
+    pointer-events: none;
+    white-space: nowrap;
+    transform: translateY(-100%);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.floating-label::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid black;
+}
+
+.label-input {
+    background: white;
+    padding: 8px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: flex;
+    gap: 8px;
+    z-index: 9999;
+}
+
+.label-input input {
+    border: 1px solid #ddd;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 120px;
+}
+
+.label-input button {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    background: #28a745;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.label-input button:hover {
+    background: #218838;
+}
+
+/* Annotation styles */
+.note {
+    display: none;
+}
+
+/* Annotation controls styles */
+#label-select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+#color-picker {
+    padding: 2px;
+    border: none;
+    border-radius: 4px;
+    height: 30px;
+    width: 50px;
+    cursor: pointer;
+}
+
+#annotation-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    background: #007bff;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+button:hover {
+    background: #0056b3;
+    transform: translateY(-1px);
+}
+
+button.active {
+    background: #28a745;
+}
+
+#download-annotations {
+    background: #6c757d;
+}
+
+#download-annotations:hover {
+    background: #5a6268;
+}
+
+#load-annotations-btn {
+    background: #17a2b8;
+}
+
+#load-annotations-btn:hover {
+    background: #138496;
+}
+
+/* Upload controls at top */
+#upload-controls {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    background: white;
+    padding: 10px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* When highlight mode is active */
+body.highlight-mode {
+    cursor: text;
+}
+
+/* Ensure canvas and text layer align perfectly */
+.page > canvas {
+    margin: 0;
+    display: block;
+}
+
+/* Selection style */
+::selection {
+    background: rgba(255, 255, 0, 0.3);
+}
+
+/* Disable default selection highlight when in highlight mode */
+.highlight-mode .text-layer::selection,
+.highlight-mode .text-layer *::selection {
+    background: transparent;
+}
+
+.highlight-mode .text-layer::-moz-selection,
+.highlight-mode .text-layer *::-moz-selection {
+    background: transparent;
+}

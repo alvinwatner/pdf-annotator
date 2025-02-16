@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Annotator</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="upload-controls">
+        <input type="file" id="pdf-upload" accept="application/pdf">
+    </div>
+
+    <div id="annotation-controls">
+        <input type="color" id="color-picker" value="#ffeb3b">
+        <button id="highlight-btn">Toggle Highlight Mode</button>
+        <button id="download-annotations">Download Annotations</button>
+        <input type="file" id="load-annotations" accept="application/json" style="display: none;">
+        <button id="load-annotations-btn">Load Annotations</button>
+        <button id="save-annotations">Save Annotations</button>
+    </div>
+
+    <div id="pdf-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.worker.min.js';</script>
+    
+    <!-- Load our app -->
+    <script src="js/app.js"></script>
+</body>
+</html>
