@@ -9,12 +9,26 @@
         <input type="file" id="pdf-upload" accept="application/pdf">
     </div>
 
-    <div id="annotation-controls">
+    <div id="annotation-controls" style="display: none;">
         <input type="color" id="color-picker" value="#ffeb3b">
         <button id="highlight-btn">Toggle Highlight Mode</button>
         <button id="download-annotations">Download Annotations</button>
         <input type="file" id="load-annotations" accept="application/json" style="display: none;">
         <button id="load-annotations-btn">Load Annotations</button>
+    </div>
+
+    <div id="empty-state" class="empty-state">
+        <div class="empty-state-content">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M14 2V8H20" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 18V12" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M9 15H15" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h2>No PDF Selected</h2>
+            <p>Upload a PDF file to start annotating</p>
+            <label for="pdf-upload" class="upload-button">Choose PDF</label>
+        </div>
     </div>
 
     <div id="pdf-container"></div>

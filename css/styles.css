@@ -19,17 +19,46 @@ body {
 }
 
 #pdf-container {
-    margin: 60px auto 100px;
-    max-width: 1000px;
-    background-color: white;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
     padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-top: 60px; /* Space for upload button */
+    margin-bottom: 80px; /* Space for annotation controls */
+    background-color: #f0f0f0;
+}
+
+#pdf-container::-webkit-scrollbar {
+    width: 12px;
+}
+
+#pdf-container::-webkit-scrollbar-track {
+    background: #f0f0f0;
+}
+
+#pdf-container::-webkit-scrollbar-thumb {
+    background-color: #999;
+    border-radius: 6px;
+    border: 3px solid #f0f0f0;
+}
+
+#pdf-container::-webkit-scrollbar-thumb:hover {
+    background-color: #666;
 }
 
 .page-wrapper {
     position: relative;
-    margin-bottom: 20px;
+    margin: 0 auto 20px;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+.page-wrapper:last-child {
+    margin-bottom: 0;
 }
 
 .page {
@@ -68,10 +97,11 @@ canvas {
     position: absolute;
     white-space: pre;
     cursor: text;
+    transform-origin: 0% 0%;
 }
 
 .text-layer > span::selection {
-    background: rgba(0, 0, 255, 0.2);
+    background: rgba(0, 0, 255, 0.1);
 }
 
 .highlight-group {
@@ -94,6 +124,17 @@ canvas {
 
 .highlight-group .highlight:hover {
     opacity: 0.7 !important;
+}
+
+.highlight-group .highlight.selection-preview {
+    opacity: 0.4;
+    pointer-events: none;
+    transition: none;
+    will-change: left, top, width, height;
+}
+
+.highlight-group.temp-group {
+    z-index: 3;
 }
 
 .highlight-group .highlight.temp-highlight {
@@ -241,8 +282,12 @@ button.active {
     z-index: 1000;
     background: white;
     padding: 10px;
-    border-radius: 4px;
+    border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#upload-controls input[type="file"] {
+    display: none;
 }
 
 /* When highlight mode is active */
@@ -270,4 +315,59 @@ body.highlight-mode {
 .highlight-mode .text-layer::-moz-selection,
 .highlight-mode .text-layer *::-moz-selection {
     background: transparent;
+}
+
+.empty-state {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f8f9fa;
+    z-index: 1;
+}
+
+.empty-state-content {
+    text-align: center;
+    padding: 2rem;
+    max-width: 400px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.empty-state-content svg {
+    margin-bottom: 1.5rem;
+}
+
+.empty-state-content h2 {
+    margin: 0 0 0.5rem;
+    color: #333;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.empty-state-content p {
+    margin: 0 0 1.5rem;
+    color: #666;
+    font-size: 1rem;
+}
+
+.upload-button {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background-color: #007bff;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+}
+
+.upload-button:hover {
+    background-color: #0056b3;
+    transform: translateY(-1px);
 }

@@ -10,6 +10,8 @@ class PDFAnnotator {
         this.downloadBtn = document.getElementById('download-annotations');
         this.loadAnnotationsBtn = document.getElementById('load-annotations-btn');
         this.loadAnnotationsInput = document.getElementById('load-annotations');
+        this.emptyState = document.getElementById('empty-state');
+        this.annotationControls = document.getElementById('annotation-controls');
         
         this.pdfDoc = null;
         this.currentPage = 1;
@@ -29,7 +31,9 @@ class PDFAnnotator {
             document.body.classList.toggle('highlight-mode');
         });
         
-        // Add document-level event listener for text selection
+        // Add document-level event listeners for text selection
+        document.addEventListener('selectstart', this.handleSelectionStart.bind(this));
+        document.addEventListener('selectionchange', this.handleSelectionChange.bind(this));
         document.addEventListener('mouseup', this.handleTextSelection.bind(this));
         
         // Add document-level event listener for highlight deletion
@@ -43,6 +47,92 @@ class PDFAnnotator {
             this.loadAnnotationsInput.click();
         });
         this.loadAnnotationsInput.addEventListener('change', this.loadAnnotations.bind(this));
+
+        // Clear temporary highlights when selection is cleared
+        document.addEventListener('selectionchange', () => {
+            const selection = window.getSelection();
+            if (!selection.rangeCount || selection.isCollapsed) {
+                this.clearTemporaryHighlights();
+            }
+        });
+    }
+
+    handleSelectionStart(event) {
+        if (!this.isHighlightMode) return;
+        
+        // Clear any existing temporary highlights
+        this.clearTemporaryHighlights();
+    }
+
+    handleSelectionChange(event) {
+        if (!this.isHighlightMode) return;
+
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        if (range.collapsed) {
+            this.clearTemporaryHighlights();
+            return;
+        }
+
+        // Find the text layer
+        let node = range.startContainer;
+        let textLayer = null;
+        while (node && !textLayer) {
+            if (node.nodeType === 1 && node.classList.contains('text-layer')) {
+                textLayer = node;
+            }
+            node = node.parentNode;
+        }
+
+        if (!textLayer) {
+            this.clearTemporaryHighlights();
+            return;
+        }
+
+        try {
+            // Clear previous temporary highlights
+            this.clearTemporaryHighlights();
+
+            // Create a temporary highlight group
+            const highlightGroup = document.createElement('div');
+            highlightGroup.className = 'highlight-group temp-group';
+
+            const textLayerRect = textLayer.getBoundingClientRect();
+            const rects = range.getClientRects();
+
+            // Create highlights for each rect
+            for (let rect of rects) {
+                const highlightDiv = document.createElement('span');
+                highlightDiv.className = 'highlight temp-highlight selection-preview';
+                highlightDiv.style.backgroundColor = this.colorPicker.value;
+                
+                const rectPos = {
+                    left: rect.left - textLayerRect.left,
+                    top: rect.top - textLayerRect.top,
+                    width: rect.width,
+                    height: rect.height
+                };
+
+                highlightDiv.style.left = `${rectPos.left}px`;
+                highlightDiv.style.top = `${rectPos.top}px`;
+                highlightDiv.style.width = `${rectPos.width}px`;
+                highlightDiv.style.height = `${rectPos.height}px`;
+
+                highlightGroup.appendChild(highlightDiv);
+            }
+
+            textLayer.appendChild(highlightGroup);
+        } catch (error) {
+            console.error('Error in selection preview:', error);
+        }
+    }
+
+    clearTemporaryHighlights() {
+        // Remove all temporary highlight groups
+        const tempGroups = document.querySelectorAll('.temp-group');
+        tempGroups.forEach(group => group.remove());
     }
 
     handleHighlightClick(event) {
@@ -96,13 +186,31 @@ class PDFAnnotator {
                 const typedArray = new Uint8Array(e.target.result);
                 try {
                     this.pdfDoc = await pdfjsLib.getDocument(typedArray).promise;
+                    this.showPdfView();
                     this.renderPDF();
                 } catch (error) {
                     console.error('Error loading PDF:', error);
+                    this.showEmptyState();
                 }
             };
             fileReader.readAsArrayBuffer(file);
         }
+    }
+
+    showPdfView() {
+        this.emptyState.style.display = 'none';
+        this.annotationControls.style.display = 'flex';
+        this.container.style.display = 'block';
+    }
+
+    showEmptyState() {
+        this.emptyState.style.display = 'flex';
+        this.annotationControls.style.display = 'none';
+        this.container.style.display = 'none';
+        this.container.innerHTML = '';
+        this.pdfDoc = null;
+        this.currentPdfName = '';
+        this.annotations = [];
     }
 
     async renderPDF() {
