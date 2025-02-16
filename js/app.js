@@ -452,27 +452,8 @@ class PDFAnnotator {
     }
 
     async saveAnnotations() {
-        try {
-            const response = await fetch('/save_annotations', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(this.annotations)
-            });
-
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                alert('Annotations saved successfully!');
-                console.log('Saved annotations:', this.annotations);
-            } else {
-                throw new Error('Failed to save annotations');
-            }
-        } catch (error) {
-            console.error('Error saving annotations:', error);
-            alert('Error saving annotations. Please try again.');
-        }
+        // Placeholder for future implementation
+        console.log('Save annotations endpoint not implemented yet');
     }
 }
 
