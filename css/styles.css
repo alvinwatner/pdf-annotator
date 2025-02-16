@@ -19,16 +19,13 @@ body {
 }
 
 #pdf-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    overflow-y: auto;
+    margin: 0 auto;
     padding: 20px;
-    margin-top: 60px; /* Space for upload button */
-    margin-bottom: 80px; /* Space for annotation controls */
-    background-color: #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 100%;
+    min-height: 100vh;
 }
 
 #pdf-container::-webkit-scrollbar {
@@ -49,12 +46,22 @@ body {
     background-color: #666;
 }
 
+.pages-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
 .page-wrapper {
     position: relative;
-    margin: 0 auto 20px;
     background: white;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     border-radius: 4px;
+    width: fit-content;
+    margin: 0 auto 20px;
 }
 
 .page-wrapper:last-child {
@@ -69,10 +76,12 @@ body {
 
 .canvasWrapper {
     position: relative;
+    margin: 0 auto;
 }
 
 canvas {
     display: block;
+    margin: 0 auto;
 }
 
 .pdf-page {
@@ -90,6 +99,7 @@ canvas {
     opacity: 1;
     line-height: 1.0;
     user-select: text;
+    pointer-events: none; /* Disable by default */
 }
 
 .text-layer > span {
@@ -98,10 +108,16 @@ canvas {
     white-space: pre;
     cursor: text;
     transform-origin: 0% 0%;
+    pointer-events: none; /* Disable by default */
 }
 
-.text-layer > span::selection {
-    background: rgba(0, 0, 255, 0.1);
+/* When highlight mode is active */
+body.highlight-mode .text-layer {
+    pointer-events: auto; /* Enable only in highlight mode */
+}
+
+body.highlight-mode .text-layer > span {
+    pointer-events: auto; /* Enable only in highlight mode */
 }
 
 .highlight-group {
@@ -111,35 +127,71 @@ canvas {
     right: 0;
     bottom: 0;
     pointer-events: none;
-}
-
-.highlight-group .highlight {
-    position: absolute;
-    pointer-events: auto;
-    mix-blend-mode: multiply;
-    transition: opacity 0.2s;
-    cursor: pointer;
-    opacity: 0.3;
-}
-
-.highlight-group .highlight:hover {
-    opacity: 0.7 !important;
-}
-
-.highlight-group .highlight.selection-preview {
-    opacity: 0.4;
-    pointer-events: none;
-    transition: none;
-    will-change: left, top, width, height;
-}
-
-.highlight-group.temp-group {
     z-index: 3;
 }
 
-.highlight-group .highlight.temp-highlight {
+.highlight-wrapper {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: auto;
+}
+
+.highlight {
+    position: absolute;
+    mix-blend-mode: multiply;
+    opacity: 0.3;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    pointer-events: auto;
+}
+
+.highlight:hover {
     opacity: 0.5;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.temp-highlight {
+    pointer-events: none;
+}
+
+.label-input-container {
+    position: fixed;
+    z-index: 1000;
+    background: white;
+    padding: 8px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.label-input {
+    border: 1px solid #ddd;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 120px;
+    outline: none;
+}
+
+.label-input:focus {
+    border-color: #007bff;
+}
+
+.add-button {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.add-button:hover {
+    background-color: #218838;
 }
 
 .floating-label {
@@ -167,24 +219,6 @@ canvas {
     border-left: 4px solid transparent;
     border-right: 4px solid transparent;
     border-top: 4px solid black;
-}
-
-.label-input {
-    background: white;
-    padding: 8px;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    display: flex;
-    gap: 8px;
-    z-index: 9999;
-}
-
-.label-input input {
-    border: 1px solid #ddd;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 14px;
-    min-width: 120px;
 }
 
 .label-input button {
@@ -288,11 +322,6 @@ button.active {
 
 #upload-controls input[type="file"] {
     display: none;
-}
-
-/* When highlight mode is active */
-body.highlight-mode {
-    cursor: text;
 }
 
 /* Ensure canvas and text layer align perfectly */

@@ -47,92 +47,157 @@ class PDFAnnotator {
             this.loadAnnotationsInput.click();
         });
         this.loadAnnotationsInput.addEventListener('change', this.loadAnnotations.bind(this));
+    }
 
-        // Clear temporary highlights when selection is cleared
-        document.addEventListener('selectionchange', () => {
-            const selection = window.getSelection();
-            if (!selection.rangeCount || selection.isCollapsed) {
-                this.clearTemporaryHighlights();
+    async renderPage(pageNum) {
+        try {
+            const page = await this.pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: this.scale });
+
+            // Create page wrapper
+            const pageWrapper = document.createElement('div');
+            pageWrapper.className = 'page-wrapper';
+            pageWrapper.setAttribute('data-page-number', pageNum);
+            this.container.appendChild(pageWrapper);
+
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            // Create canvas wrapper
+            const canvasWrapper = document.createElement('div');
+            canvasWrapper.className = 'canvasWrapper';
+            pageWrapper.appendChild(canvasWrapper);
+            canvasWrapper.appendChild(canvas);
+
+            // Create text layer
+            const textLayerDiv = document.createElement('div');
+            textLayerDiv.className = 'text-layer';
+            textLayerDiv.style.width = `${viewport.width}px`;
+            textLayerDiv.style.height = `${viewport.height}px`;
+            pageWrapper.appendChild(textLayerDiv);
+
+            // Create highlight layer
+            const highlightLayer = document.createElement('div');
+            highlightLayer.className = 'highlight-group';
+            pageWrapper.appendChild(highlightLayer);
+
+            // Render PDF page
+            const renderContext = {
+                canvasContext: context,
+                viewport: viewport
+            };
+
+            // Get text content and render text layer
+            const [textContent] = await Promise.all([
+                page.getTextContent(),
+                page.render(renderContext).promise
+            ]);
+
+            // Render text layer using renderTextLayer
+            pdfjsLib.renderTextLayer({
+                textContent: textContent,
+                container: textLayerDiv,
+                viewport: viewport,
+                textDivs: []
+            });
+
+            // Restore highlights after text layer is rendered
+            if (this.annotations && this.annotations.length > 0) {
+                this.restoreHighlights(pageNum, textLayerDiv);
             }
-        });
+
+        } catch (error) {
+            console.error('Error rendering page:', error);
+        }
     }
 
-    handleSelectionStart(event) {
-        if (!this.isHighlightMode) return;
-        
-        // Clear any existing temporary highlights
-        this.clearTemporaryHighlights();
-    }
-
-    handleSelectionChange(event) {
+    handleTextSelection(event) {
         if (!this.isHighlightMode) return;
 
         const selection = window.getSelection();
-        if (!selection.rangeCount) return;
+        const selectedText = selection.toString().trim();
 
-        const range = selection.getRangeAt(0);
-        if (range.collapsed) {
-            this.clearTemporaryHighlights();
-            return;
-        }
-
-        // Find the text layer
-        let node = range.startContainer;
-        let textLayer = null;
-        while (node && !textLayer) {
-            if (node.nodeType === 1 && node.classList.contains('text-layer')) {
-                textLayer = node;
-            }
-            node = node.parentNode;
-        }
-
-        if (!textLayer) {
-            this.clearTemporaryHighlights();
-            return;
-        }
-
-        try {
-            // Clear previous temporary highlights
-            this.clearTemporaryHighlights();
-
-            // Create a temporary highlight group
-            const highlightGroup = document.createElement('div');
-            highlightGroup.className = 'highlight-group temp-group';
-
-            const textLayerRect = textLayer.getBoundingClientRect();
-            const rects = range.getClientRects();
-
-            // Create highlights for each rect
-            for (let rect of rects) {
-                const highlightDiv = document.createElement('span');
-                highlightDiv.className = 'highlight temp-highlight selection-preview';
-                highlightDiv.style.backgroundColor = this.colorPicker.value;
+        if (selectedText) {
+            try {
+                const range = selection.getRangeAt(0);
                 
-                const rectPos = {
-                    left: rect.left - textLayerRect.left,
-                    top: rect.top - textLayerRect.top,
-                    width: rect.width,
-                    height: rect.height
-                };
+                // Find the text layer
+                let node = range.startContainer;
+                let textLayer = null;
+                let pageWrapper = null;
+                while (node && !textLayer) {
+                    if (node.nodeType === 1) {
+                        if (node.classList.contains('text-layer')) {
+                            textLayer = node;
+                            pageWrapper = node.closest('.page-wrapper');
+                        }
+                    }
+                    node = node.parentNode;
+                }
+                
+                if (!textLayer || !pageWrapper) {
+                    console.log('Selection not in text layer');
+                    return;
+                }
 
-                highlightDiv.style.left = `${rectPos.left}px`;
-                highlightDiv.style.top = `${rectPos.top}px`;
-                highlightDiv.style.width = `${rectPos.width}px`;
-                highlightDiv.style.height = `${rectPos.height}px`;
+                const pageNumber = parseInt(pageWrapper.dataset.pageNumber);
+                const textLayerRect = textLayer.getBoundingClientRect();
+                
+                // Get the selected text's position
+                const rects = range.getClientRects();
+                if (rects.length === 0) return;
 
-                highlightGroup.appendChild(highlightDiv);
+                // Create highlight group
+                const highlightId = Math.random().toString(36).substr(2, 9);
+                const highlightGroup = document.createElement('div');
+                highlightGroup.className = 'highlight-group';
+                highlightGroup.dataset.highlightId = highlightId;
+
+                // Store positions and create highlights
+                const rectPositions = [];
+                for (let rect of rects) {
+                    const rectPos = {
+                        left: rect.left - textLayerRect.left,
+                        top: rect.top - textLayerRect.top,
+                        width: rect.width,
+                        height: rect.height
+                    };
+
+                    const highlightDiv = document.createElement('span');
+                    highlightDiv.className = 'highlight';
+                    highlightDiv.style.backgroundColor = this.colorPicker.value;
+                    highlightDiv.style.left = `${rectPos.left}px`;
+                    highlightDiv.style.top = `${rectPos.top}px`;
+                    highlightDiv.style.width = `${rectPos.width}px`;
+                    highlightDiv.style.height = `${rectPos.height}px`;
+                    
+                    highlightGroup.appendChild(highlightDiv);
+                    rectPositions.push(rectPos);
+                }
+
+                textLayer.appendChild(highlightGroup);
+
+                // Show label input
+                const lastRect = rects[rects.length - 1];
+                const labelX = lastRect.right + 10;
+                const labelY = lastRect.top;
+                
+                this.showLabelInput(
+                    labelX,
+                    labelY,
+                    highlightId,
+                    selectedText,
+                    pageNumber,
+                    rectPositions
+                );
+
+            } catch (error) {
+                console.error('Error in text selection:', error);
             }
-
-            textLayer.appendChild(highlightGroup);
-        } catch (error) {
-            console.error('Error in selection preview:', error);
         }
-    }
-
-    clearTemporaryHighlights() {
-        // Remove all temporary highlight groups
-        const tempGroups = document.querySelectorAll('.temp-group');
-        tempGroups.forEach(group => group.remove());
     }
 
     handleHighlightClick(event) {
@@ -220,88 +285,21 @@ class PDFAnnotator {
         }
     }
 
-    async renderPage(pageNum) {
-        try {
-            const page = await this.pdfDoc.getPage(pageNum);
-            const viewport = page.getViewport({ scale: this.scale });
-
-            // Create wrapper
-            const wrapper = document.createElement('div');
-            wrapper.className = 'page-wrapper';
-            wrapper.dataset.pageNumber = pageNum;
-            
-            const pageDiv = document.createElement('div');
-            pageDiv.className = 'page';
-            pageDiv.style.width = `${viewport.width}px`;
-            pageDiv.style.height = `${viewport.height}px`;
-            
-            // Create canvas layer
-            const canvasWrapper = document.createElement('div');
-            canvasWrapper.className = 'canvasWrapper';
-            
-            const canvas = document.createElement('canvas');
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            
-            const ctx = canvas.getContext('2d');
-            canvasWrapper.appendChild(canvas);
-            
-            // Create text layer
-            const textLayerDiv = document.createElement('div');
-            textLayerDiv.className = 'text-layer';
-            textLayerDiv.style.width = `${viewport.width}px`;
-            textLayerDiv.style.height = `${viewport.height}px`;
-            
-            // Append elements
-            pageDiv.appendChild(canvasWrapper);
-            pageDiv.appendChild(textLayerDiv);
-            wrapper.appendChild(pageDiv);
-            this.container.appendChild(wrapper);
-
-            // Render canvas
-            const renderContext = {
-                canvasContext: ctx,
-                viewport: viewport
-            };
-            
-            // Get text content and render text layer
-            const [textContent] = await Promise.all([
-                page.getTextContent(),
-                page.render(renderContext).promise
-            ]);
-
-            // Create text layer
-            const textLayer = await new Promise((resolve) => {
-                const renderTextLayer = pdfjsLib.renderTextLayer({
-                    textContent: textContent,
-                    container: textLayerDiv,
-                    viewport: viewport,
-                    textDivs: []
-                });
-
-                const checkTextLayer = () => {
-                    if (textLayerDiv.children.length > 0) {
-                        resolve(renderTextLayer);
-                    } else {
-                        requestAnimationFrame(checkTextLayer);
-                    }
-                };
-                checkTextLayer();
-            });
-
-            // After text layer is rendered, restore highlights
-            this.restoreHighlights(pageNum, textLayerDiv, viewport);
-
-        } catch (error) {
-            console.error('Error rendering page:', error);
-        }
+    restoreHighlights() {
+        const pages = this.container.querySelectorAll('.page-wrapper');
+        pages.forEach(page => {
+            const pageNumber = parseInt(page.dataset.pageNumber);
+            const textLayer = page.querySelector('.text-layer');
+            const viewport = textLayer.getBoundingClientRect();
+            this.restoreHighlights(pageNumber, textLayer);
+        });
     }
 
-    restoreHighlights(pageNum, textLayer, viewport) {
+    restoreHighlights(pageNum, textLayer) {
         const pageAnnotations = this.annotations.filter(a => a.pageNumber === pageNum);
         
         // Remove any existing highlights first
-        const existingHighlights = textLayer.querySelectorAll('.highlight');
+        const existingHighlights = textLayer.querySelectorAll('.highlight-group');
         existingHighlights.forEach(h => h.remove());
 
         // Remove any existing labels
@@ -348,154 +346,99 @@ class PDFAnnotator {
         });
     }
 
-    handleTextSelection(event) {
-        if (!this.isHighlightMode) return;
+    showLabelInput(x, y, highlightId, text, pageNumber, rects) {
+        // Remove any existing label input
+        const existingInput = document.querySelector('.label-input-container');
+        if (existingInput) {
+            existingInput.remove();
+        }
 
-        const selection = window.getSelection();
-        const selectedText = selection.toString().trim();
+        // Create label input container
+        const container = document.createElement('div');
+        container.className = 'label-input-container';
+        container.style.position = 'fixed';
+        container.style.left = `${x}px`;
+        container.style.top = `${y}px`;
+        container.style.zIndex = '1000';
 
-        if (selectedText) {
-            try {
-                const range = selection.getRangeAt(0);
-                const color = this.colorPicker.value;
-                
-                // Find the text layer by traversing up from any text node
-                let node = range.startContainer;
-                let textLayer = null;
-                let pageWrapper = null;
-                while (node && !textLayer) {
-                    if (node.nodeType === 1) {
-                        if (node.classList.contains('text-layer')) {
-                            textLayer = node;
-                            pageWrapper = node.closest('.page-wrapper');
-                        }
-                    }
-                    node = node.parentNode;
-                }
-                
-                if (!textLayer || !pageWrapper) {
-                    console.log('Selection not in text layer');
-                    return;
-                }
+        // Create input element
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Enter label...';
+        input.className = 'label-input';
 
-                const pageNumber = parseInt(pageWrapper.dataset.pageNumber);
-                const textLayerRect = textLayer.getBoundingClientRect();
-                
-                // Get the selected text's position
-                const rects = range.getClientRects();
-                if (rects.length === 0) return;
+        // Create add button
+        const addButton = document.createElement('button');
+        addButton.textContent = 'Add';
+        addButton.className = 'add-button';
 
-                // Create temporary highlights
-                const highlights = [];
-                const rectPositions = [];
-                const annotationId = Math.random().toString(36).substr(2, 9);
-                
-                const highlightGroup = document.createElement('div');
-                highlightGroup.className = 'highlight-group';
-                highlightGroup.dataset.annotationId = annotationId;
-                
-                for (let rect of rects) {
-                    const highlightDiv = document.createElement('span');
-                    highlightDiv.className = 'highlight temp-highlight';
-                    highlightDiv.style.backgroundColor = color;
-                    
-                    // Store positions relative to text layer
-                    const rectPos = {
-                        left: rect.left - textLayerRect.left,
-                        top: rect.top - textLayerRect.top,
-                        width: rect.width,
-                        height: rect.height
-                    };
-                    
-                    highlightDiv.style.left = `${rectPos.left}px`;
-                    highlightDiv.style.top = `${rectPos.top}px`;
-                    highlightDiv.style.width = `${rectPos.width}px`;
-                    highlightDiv.style.height = `${rectPos.height}px`;
-                    
-                    highlightGroup.appendChild(highlightDiv);
-                    highlights.push(highlightDiv);
-                    rectPositions.push(rectPos);
-                }
-                
-                textLayer.appendChild(highlightGroup);
+        // Add elements to container
+        container.appendChild(input);
+        container.appendChild(addButton);
+        document.body.appendChild(container);
 
-                // Create and position label input
-                const labelInput = document.createElement('div');
-                labelInput.className = 'label-input';
-                
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.placeholder = 'Enter label...';
-                
-                const saveButton = document.createElement('button');
-                saveButton.textContent = 'Add';
-                
-                labelInput.appendChild(input);
-                labelInput.appendChild(saveButton);
-                
-                // Position the label input near the last highlight
-                const lastRect = rects[rects.length - 1];
-                labelInput.style.position = 'absolute';
-                labelInput.style.left = `${lastRect.right - textLayerRect.left}px`;
-                labelInput.style.top = `${lastRect.bottom - textLayerRect.top + 5}px`;
-                
-                textLayer.appendChild(labelInput);
-                input.focus();
+        // Focus the input
+        input.focus();
 
-                const handleSave = () => {
-                    const label = input.value.trim();
-                    if (label) {
-                        // Store annotation
-                        this.annotations.push({
-                            id: annotationId,
-                            pageNumber: pageNumber,
-                            text: selectedText,
-                            label: label,
-                            color: color,
-                            rects: rectPositions
-                        });
-
-                        // Re-render the highlights for this page
-                        this.restoreHighlights(pageNumber, textLayer);
-                    } else {
-                        highlightGroup.remove();
-                    }
-                    
-                    labelInput.remove();
-                    selection.removeAllRanges();
-                };
-
-                const handleCancel = () => {
-                    highlightGroup.remove();
-                    labelInput.remove();
-                    selection.removeAllRanges();
-                };
-
-                saveButton.addEventListener('click', handleSave);
-                
-                input.addEventListener('keyup', (e) => {
-                    if (e.key === 'Enter') {
-                        handleSave();
-                    } else if (e.key === 'Escape') {
-                        handleCancel();
-                    }
+        const saveHighlight = () => {
+            const label = input.value.trim();
+            if (label) {
+                this.annotations.push({
+                    id: highlightId,
+                    text,
+                    label,
+                    color: this.colorPicker.value,
+                    pageNumber,
+                    rects
                 });
 
-                // Handle click outside
-                setTimeout(() => {
-                    const handleClickOutside = (e) => {
-                        if (!labelInput.contains(e.target)) {
-                            handleCancel();
-                            document.removeEventListener('click', handleClickOutside);
-                        }
-                    };
-                    document.addEventListener('click', handleClickOutside);
-                }, 0);
-
-            } catch (error) {
-                console.error('Error in text selection:', error);
+                // Find the text layer and restore highlights
+                const pageWrapper = document.querySelector(`[data-page-number="${pageNumber}"]`);
+                if (pageWrapper) {
+                    const textLayer = pageWrapper.querySelector('.text-layer');
+                    if (textLayer) {
+                        this.restoreHighlights(pageNumber, textLayer);
+                    }
+                }
+            } else {
+                // Remove the highlight if no label
+                const highlight = document.querySelector(`[data-highlight-id="${highlightId}"]`);
+                if (highlight) {
+                    highlight.remove();
+                }
             }
-        }
+            container.remove();
+        };
+
+        const cancelHighlight = () => {
+            // Remove the highlight
+            const highlight = document.querySelector(`[data-highlight-id="${highlightId}"]`);
+            if (highlight) {
+                highlight.remove();
+            }
+            container.remove();
+        };
+
+        // Handle input events
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                saveHighlight();
+            } else if (e.key === 'Escape') {
+                cancelHighlight();
+            }
+        });
+
+        // Handle add button click
+        addButton.addEventListener('click', saveHighlight);
+
+        // Handle click outside
+        const handleClickOutside = (e) => {
+            if (!container.contains(e.target)) {
+                cancelHighlight();
+                document.removeEventListener('mousedown', handleClickOutside);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
     }
 
     downloadAnnotations() {
@@ -562,6 +505,109 @@ class PDFAnnotator {
     async saveAnnotations() {
         // Placeholder for future implementation
         console.log('Save annotations endpoint not implemented yet');
+    }
+
+    handleSelectionStart(event) {
+        if (!this.isHighlightMode) return;
+        
+        // Only handle selection in text layer
+        const textLayer = event.target.closest('.text-layer');
+        if (!textLayer) {
+            event.preventDefault();
+            return;
+        }
+        
+        // Clear any existing temporary highlights
+        this.clearTemporaryHighlights();
+    }
+
+    handleSelectionChange(event) {
+        if (!this.isHighlightMode) return;
+
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        if (range.collapsed) {
+            this.clearTemporaryHighlights();
+            return;
+        }
+
+        // Find the text layer
+        let node = range.startContainer;
+        let textLayer = null;
+        while (node && !textLayer) {
+            if (node.nodeType === 1 && node.classList.contains('text-layer')) {
+                textLayer = node;
+            }
+            node = node.parentNode;
+        }
+
+        if (!textLayer) {
+            this.clearTemporaryHighlights();
+            return;
+        }
+
+        // Check if selection is within a single text layer
+        const endNode = range.endContainer;
+        let endTextLayer = null;
+        node = endNode;
+        while (node && !endTextLayer) {
+            if (node.nodeType === 1 && node.classList.contains('text-layer')) {
+                endTextLayer = node;
+            }
+            node = node.parentNode;
+        }
+
+        // If selection spans multiple text layers, clear it
+        if (endTextLayer !== textLayer) {
+            selection.removeAllRanges();
+            this.clearTemporaryHighlights();
+            return;
+        }
+
+        try {
+            // Clear previous temporary highlights
+            this.clearTemporaryHighlights();
+
+            // Create a temporary highlight group
+            const highlightGroup = document.createElement('div');
+            highlightGroup.className = 'highlight-group temp-group';
+
+            const textLayerRect = textLayer.getBoundingClientRect();
+            const rects = range.getClientRects();
+
+            // Create highlights for each rect
+            for (let rect of rects) {
+                const highlightDiv = document.createElement('span');
+                highlightDiv.className = 'highlight temp-highlight selection-preview';
+                highlightDiv.style.backgroundColor = this.colorPicker.value;
+                
+                const rectPos = {
+                    left: rect.left - textLayerRect.left,
+                    top: rect.top - textLayerRect.top,
+                    width: rect.width,
+                    height: rect.height
+                };
+
+                highlightDiv.style.left = `${rectPos.left}px`;
+                highlightDiv.style.top = `${rectPos.top}px`;
+                highlightDiv.style.width = `${rectPos.width}px`;
+                highlightDiv.style.height = `${rectPos.height}px`;
+
+                highlightGroup.appendChild(highlightDiv);
+            }
+
+            textLayer.appendChild(highlightGroup);
+        } catch (error) {
+            console.error('Error in selection preview:', error);
+        }
+    }
+
+    clearTemporaryHighlights() {
+        // Remove all temporary highlight groups
+        const tempGroups = document.querySelectorAll('.temp-group');
+        tempGroups.forEach(group => group.remove());
     }
 }
 
